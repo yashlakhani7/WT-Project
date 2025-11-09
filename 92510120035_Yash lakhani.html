@@ -1,0 +1,1050 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FestoSphere</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .bg-gradient-to-br { background-image: linear-gradient(to bottom right, var(--tw-gradient-stops)); }
+        .bg-clip-text { -webkit-background-clip: text; background-clip: text; }
+        .backdrop-blur { backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }
+    </style>
+</head>
+<body class="bg-slate-950 text-white font-sans overflow-x-hidden min-h-screen relative">
+
+<!-- Background Glow -->
+<div class="pointer-events-none fixed inset-0 -z-10">
+    <div class="absolute -top-24 left-1/2 -translate-x-1/2 w-[72rem] h-[72rem] rounded-full blur-3xl opacity-30"
+        style="background: radial-gradient(closest-side, rgba(168,85,247,0.6), rgba(217,70,239,0.35), rgba(251,191,36,0.15), transparent);">
+    </div>
+</div>
+
+<!-- Main App Container -->
+<div id="app"></div>
+
+<script>
+    const brand = {
+        name: "FestoSphere",
+        gradient: "from-violet-600 via-fuchsia-500 to-amber-400",
+        bg: "bg-gradient-to-br from-slate-900 via-slate-950 to-black",
+        card: "bg-white/5 backdrop-blur supports-backdrop:backdrop-blur-md border border-white/10",
+    };
+
+    const DEFAULT_EVENTS = [
+        { id: 'ev1', title: "AI Hack Sprint", track: "Tech", venue: "Lab-3, Block B", date: "2025-10-12", time: "10:00 – 18:00", desc: "Build an AI prototype in 8 hours. Teams of 3–5.", capacity: 80, },
+        { id: 'ev2', title: "Battle of Bands", track: "Cultural", venue: "Main Stage", date: "2025-10-13", time: "19:00 – 22:00", desc: "Rock, indie, folk—bring the house down!", capacity: 500, },
+        { id: 'ev3', title: "UI/UX Designathon", track: "Design", venue: "Studio-1", date: "2025-10-12", time: "11:00 – 16:00", desc: "Rapid prototyping with mentors and feedback loops.", capacity: 60, },
+        { id: 'ev4', title: "Esports Arena: Valorant", track: "Gaming", venue: "Auditorium", date: "2025-10-14", time: "12:00 – 20:00", desc: "Knockout format. BYOD or campus rigs.", capacity: 160, },
+    ];
+
+    const getLocal = (key, initial) => {
+        const raw = localStorage.getItem(key);
+        return raw ? JSON.parse(raw) : initial;
+    };
+
+    const setLocal = (key, data) => {
+        localStorage.setItem(key, JSON.stringify(data));
+    };
+
+    let events = getLocal("fs_events", DEFAULT_EVENTS);
+    let registrations = getLocal("fs_regs", []);
+    let volunteers = getLocal("fs_vols", []);
+    let queries = getLocal("fs_queries", []);
+    let profile = getLocal("fs_profile", { name: "", email: "" });
+    let currentTab = 'home';
+    let editingEventId = null;
+
+    function render() {
+        const app = document.getElementById('app');
+        app.innerHTML = `
+            <header class="sticky top-0 z-40 border-b border-white/10 bg-black/50 backdrop-blur">
+                <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+                    <div class="flex items-center gap-3">
+                        <div class="h-9 w-9 rounded-2xl bg-gradient-to-br from-fuchsia-500 to-amber-400 grid place-items-center">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-5 w-5 text-black"><path d="M10.15 2.15l-1.35 1.63c-1.25 1.76-.73 4.29 1.03 5.54L12 11.23l2.17 1.45c1.76 1.25 4.29.73 5.54-1.03l1.63-1.35"/><path d="M12 22.8c-1.4 0-2.4-1.1-2.4-2.5s1.1-2.4 2.5-2.4l1.3-1c1.3-1 3-1 4.3 0l1.3 1c1.4-.1 2.5 1 2.5 2.4s-1.1 2.5-2.5 2.5H12z"/><path d="M16 8c0 3-2.5 5.5-5.5 5.5S5 11 5 8c0-3 2.5-5.5 5.5-5.5S16 5 16 8z"/><path d="M8 22.8c-1.4 0-2.4-1.1-2.4-2.5s1.1-2.4 2.5-2.4l1.3-1c1.3-1 3-1 4.3 0l1.3 1c1.4-.1 2.5 1 2.5 2.4s-1.1 2.5-2.5 2.5H8z"/></svg>
+                        </div>
+                        <div class="font-semibold tracking-tight text-white/90">
+                            <span class="bg-clip-text text-transparent bg-gradient-to-r from-violet-600 via-fuchsia-500 to-amber-400">FestoSphere</span>
+                        </div>
+                    </div>
+                    <nav class="hidden md:flex items-center gap-1">
+                        ${renderNavItems()}
+                    </nav>
+                    <div class="md:hidden">
+                        <select onchange="handleNav(event.target.value)" class="bg-white/10 border border-white/10 rounded-xl px-3 py-2 text-sm">
+                            ${renderMobileNavItems()}
+                        </select>
+                    </div>
+                </div>
+            </header>
+            <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+                    ${renderContent()}
+            </main>
+            <footer class="mt-12 pb-8 text-center text-xs text-white/50">
+                © ${new Date().getFullYear()} FestoSphere • Built with ❤️ for campus fests
+            </footer>
+        `;
+        lucide.createIcons();
+        attachEventListeners();
+    }
+
+    function renderNavItems() {
+        const items = [
+            { id: "home", label: "Home", icon: "home" },
+            { id: "schedule", label: "Event Schedule", icon: "calendar-days" },
+            { id: "register", label: "Registration", icon: "ticket" },
+            { id: "pass", label: "My Pass", icon: "user" },
+            { id: "support", label: "Support & Contact", icon: "phone" },
+            { id: "admin", label: "Admin Panel", icon: "shield-check" },
+        ];
+        return items.map(item => `
+            <button onclick="handleNav('${item.id}')" class="px-3 py-2 rounded-xl text-sm flex items-center gap-2 transition hover:bg-white/10 ${currentTab === item.id ? "bg-white/10" : ""}">
+                <i data-lucide="${item.icon}" class="h-4 w-4"></i> ${item.label}
+            </button>
+        `).join('');
+    }
+
+    function renderMobileNavItems() {
+        const items = [
+            { id: "home", label: "Home" },
+            { id: "schedule", label: "Event Schedule" },
+            { id: "register", label: "Registration" },
+            { id: "pass", label: "My Pass" },
+            { id: "support", label: "Support & Contact" },
+            { id: "admin", label: "Admin Panel" },
+        ];
+        return items.map(item => `
+            <option value="${item.id}" ${currentTab === item.id ? "selected" : ""} class="bg-slate-900">${item.label}</option>
+        `).join('');
+    }
+
+    function handleNav(tabId) {
+        currentTab = tabId;
+        editingEventId = null;
+        render();
+    }
+
+    function renderContent() {
+        if (editingEventId) {
+            const eventToEdit = events.find(e => e.id === editingEventId);
+            if (eventToEdit) {
+                return renderEditEventForm(eventToEdit);
+            }
+        }
+        switch (currentTab) {
+            case 'home': return renderHome();
+            case 'schedule': return renderSchedule();
+            case 'register': return renderRegistrationForm();
+            case 'pass': return renderMyPass();
+            case 'support': return renderSupport();
+            case 'admin': return renderAdminPanel();
+            default: return renderHome();
+        }
+    }
+
+    function renderHome() {
+        const analytics = getAnalytics();
+        const filteredEvents = events.filter(e => e.title.toLowerCase().includes('') || e.track.toLowerCase().includes(''));
+        return `
+            <section class="py-8 md:py-14">
+                <div class="${brand.card} rounded-3xl p-6 md:p-10 text-center relative overflow-hidden">
+                    <div class="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.08),transparent_40%)]"></div>
+                    <h1 class="text-3xl md:text-5xl font-bold tracking-tight">Creative & Techy – Your Digital World of Fest Events</h1>
+                    <p class="mt-3 md:mt-4 text-white/70 max-w-2xl mx-auto">
+                        Explore events, register in a click, manage your pass, and get instant help. Organizers get a sleek dashboard for end‑to‑end fest management.
+                    </p>
+                    <div class="mt-6 flex items-center justify-center gap-3">
+                        <button onclick="handleNav('schedule')" class="px-5 py-2.5 rounded-2xl bg-gradient-to-r from-fuchsia-500 to-amber-400 text-black font-medium shadow-lg shadow-amber-400/20">
+                            Explore Schedule
+                        </button>
+                        <a href="#about" class="px-5 py-2.5 rounded-2xl border border-white/15 hover:border-white/25">
+                            Learn more
+                        </a>
+                    </div>
+                    <div class="mt-8 grid grid-cols-2 md:grid-cols-4 gap-3 text-left">
+                        ${["Fast registration", "Live schedule", "Volunteer ops", "Smart pass"].map(t => `
+                            <div class="rounded-2xl border border-white/10 p-3 bg-white/5">
+                                <div class="text-sm font-medium text-white/90">${t}</div>
+                                <div class="text-xs text-white/60">Built for students & organizers</div>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            </section>
+            <section class="mt-6">
+                <div class="flex items-center justify-between mb-3">
+                    <h2 class="text-xl md:text-2xl font-semibold">Featured Events</h2>
+                    <div class="flex items-center gap-2">
+                        <div class="relative">
+                            <i data-lucide="search" class="absolute left-2 top-2.5 h-4 w-4 text-white/50"></i>
+                            <input id="search-input" placeholder="Search title or track..." class="pl-8 pr-3 py-2 text-sm rounded-xl bg-white/10 border border-white/10 placeholder:text-white/40" />
+                        </div>
+                        <button onclick="handleNav('register')" class="text-sm px-3 py-2 rounded-xl border border-white/15 hover:border-white/25">
+                            Quick Register
+                        </button>
+                    </div>
+                </div>
+                <div id="events-grid" class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    ${filteredEvents.map(e => `
+                        <div class="${brand.card} rounded-2xl p-4 flex flex-col justify-between">
+                            <div>
+                                <div class="flex items-center justify-between">
+                                    <div class="text-xs uppercase tracking-wide text-white/60">${e.track}</div>
+                                    <div class="text-[10px] px-2 py-1 rounded-full bg-white/10 border border-white/10">Capacity ${e.capacity}</div>
+                                </div>
+                                <h3 class="mt-2 text-lg font-semibold">${e.title}</h3>
+                                <p class="text-sm text-white/70 mt-1 line-clamp-3">${e.desc}</p>
+                            </div>
+                            <div class="mt-4 flex items-center justify-between text-sm text-white/80">
+                                <span class="inline-flex items-center gap-1"><i data-lucide="map-pin" class="h-4 w-4"></i> ${e.venue}</span>
+                                <span class="inline-flex items-center gap-1"><i data-lucide="clock" class="h-4 w-4"></i> ${e.time}</span>
+                            </div>
+                            <div class="mt-3 text-xs text-white/60">${e.date}</div>
+                            <div class="mt-4">
+                                <a onclick="handleNav('register')" class="inline-flex items-center gap-1 text-sm font-medium text-amber-300 hover:text-amber-200">
+                                    Register <i data-lucide="chevron-right" class="h-4 w-4"></i>
+                                </a>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            </section>
+        `;
+    }
+
+    function renderSchedule() {
+        const groupedEvents = events.reduce((acc, e) => {
+            acc[e.date] = acc[e.date] || [];
+            acc[e.date].push(e);
+            return acc;
+        }, {});
+        const sortedDates = Object.keys(groupedEvents).sort();
+        return `
+            <section>
+                <h2 class="text-2xl font-semibold mb-4">Event Schedule</h2>
+                <div class="space-y-5">
+                    ${sortedDates.map(date => `
+                        <div class="${brand.card} rounded-2xl overflow-hidden">
+                            <div class="px-4 py-3 bg-white/5 border-b border-white/10 text-sm font-medium">${date}</div>
+                            <div class="divide-y divide-white/10">
+                                ${groupedEvents[date].map(e => `
+                                    <div class="px-4 py-3 grid md:grid-cols-5 gap-2 text-sm">
+                                        <div class="font-medium">${e.title}</div>
+                                        <div class="text-white/70">${e.desc}</div>
+                                        <div class="flex items-center gap-1"><i data-lucide="map-pin" class="h-4 w-4"></i> ${e.venue}</div>
+                                        <div class="flex items-center gap-1"><i data-lucide="clock" class="h-4 w-4"></i> ${e.time}</div>
+                                        <div class="text-white/80">${e.track}</div>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            </section>
+        `;
+    }
+
+    function renderRegistrationForm() {
+        return `
+            <section id="register">
+                <h2 class="text-2xl font-semibold mb-4">Register for an Event</h2>
+                <form id="registration-form" class="${brand.card} rounded-2xl p-5 grid md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="text-sm text-white/70">Select Event</label>
+                        <select id="event-select" required class="w-full mt-1 bg-white/10 border border-white/10 rounded-xl px-3 py-2">
+                            ${events.map(e => `<option value="${e.id}" class="bg-slate-900">${e.title} — ${e.date}</option>`).join('')}
+                        </select>
+                    </div>
+                    <div>
+                        <label class="text-sm text-white/70">Full Name</label>
+                        <input id="name-input" type="text" value="${profile.name}" required class="w-full mt-1 bg-white/10 border border-white/10 rounded-xl px-3 py-2"/>
+                    </div>
+                    <div>
+                        <label class="text-sm text-white/70">Email</label>
+                        <input id="email-input" type="email" value="${profile.email}" required class="w-full mt-1 bg-white/10 border border-white/10 rounded-xl px-3 py-2"/>
+                    </div>
+                    <div>
+                        <label class="text-sm text-white/70">Note (optional)</label>
+                        <input id="note-input" type="text" class="w-full mt-1 bg-white/10 border border-white/10 rounded-xl px-3 py-2"/>
+                    </div>
+                    <div class="md:col-span-2 flex items-center justify-end gap-3">
+                        <button type="reset" class="px-4 py-2 rounded-xl border border-white/15">Clear</button>
+                        <button type="submit" class="px-5 py-2 rounded-2xl bg-gradient-to-r from-fuchsia-500 to-amber-400 text-black font-medium">Submit Registration</button>
+                    </div>
+                </form>
+            </section>
+        `;
+    }
+
+    function renderMyPass() {
+        const myRegs = registrations.filter(r => r.email === profile.email && profile.email);
+        const passContent = myRegs.length > 0 ? myRegs.map(r => `
+            <div class="${brand.card} rounded-2xl p-5 flex flex-col justify-between">
+                <div>
+                    <div class="text-xs text-white/60">${r.event.date}</div>
+                    <h3 class="text-lg font-semibold">${r.event.title}</h3>
+                    <div class="text-sm text-white/70 mt-1">${r.name} • ${r.email}</div>
+                    <div class="mt-2 inline-flex items-center gap-2 text-white/80 text-sm">
+                        <i data-lucide="map-pin" class="h-4 w-4"></i> ${r.event.venue}
+                        <i data-lucide="clock" class="h-4 w-4"></i> ${r.event.time}
+                    </div>
+                    <div class="mt-3 text-xs text-white/60">Code: ${r.code}</div>
+                </div>
+                <div class="mt-4 grid grid-cols-2 gap-3">
+                    <div class="rounded-xl overflow-hidden border border-white/10 bg-white/5 p-3 grid place-items-center">
+                        ${renderFakeQR(r.code)}
+                    </div>
+                    <div class="flex flex-col justify-center gap-2">
+                        <a href="${toPassPNG(r)}" download="pass-${r.code}.png" class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-white/90 text-black font-medium">
+                            <i data-lucide="download" class="h-4 w-4"></i> Download
+                        </a>
+                        <div class="text-xs px-3 py-1 rounded-lg text-center font-medium border border-white/20 ${r.checkedIn ? 'bg-green-500/20 text-green-300' : 'bg-red-500/20 text-red-300'}">
+                            ${r.checkedIn ? 'Checked In' : 'Not Checked In'}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `).join('') : `
+            <div class="${brand.card} rounded-2xl p-5">
+                ${!profile.email ? 'Enter your details on the Registration page first.' : `No passes found for <span class="font-medium">${profile.email}</span>.`}
+            </div>
+        `;
+        return `
+            <section>
+                <h2 class="text-2xl font-semibold mb-4">My Pass</h2>
+                <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    ${passContent}
+                </div>
+            </section>
+        `;
+    }
+
+    function renderSupport() {
+        return `
+            <section>
+                <h2 class="text-2xl font-semibold mb-4">Support & Contact</h2>
+                <div class="${brand.card} rounded-2xl p-5 grid md:grid-cols-2 gap-4">
+                    <form id="support-form" class="space-y-3">
+                        <div>
+                            <label class="text-sm text-white/70">Name</label>
+                            <input id="support-name" type="text" class="w-full mt-1 bg-white/10 border border-white/10 rounded-xl px-3 py-2"/>
+                        </div>
+                        <div>
+                            <label class="text-sm text-white/70">Email</label>
+                            <input id="support-email" type="email" class="w-full mt-1 bg-white/10 border border-white/10 rounded-xl px-3 py-2"/>
+                        </div>
+                        <div>
+                            <label class="text-sm text-white/70">Message</label>
+                            <textarea id="support-msg" rows="4" class="w-full mt-1 bg-white/10 border border-white/10 rounded-xl px-3 py-2"></textarea>
+                        </div>
+                        <button type="submit" class="px-5 py-2 rounded-2xl bg-gradient-to-r from-fuchsia-500 to-amber-400 text-black font-medium">Send</button>
+                    </form>
+                    <div class="space-y-3">
+                        <div class="flex items-center gap-3 p-3 rounded-2xl border border-white/10 bg-white/5">
+                            <i data-lucide="mail" class="h-5 w-5"></i>
+                            <div>
+                                <div class="text-sm text-white/60">Email</div>
+                                <div class="font-medium">festosphere@campus.edu</div>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-3 p-3 rounded-2xl border border-white/10 bg-white/5">
+                            <i data-lucide="phone" class="h-5 w-5"></i>
+                            <div>
+                                <div class="text-sm text-white/60">Helpline</div>
+                                <div class="font-medium">(+91) 98765 43210</div>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-3 p-3 rounded-2xl border border-white/10 bg-white/5">
+                            <i data-lucide="map-pin" class="h-5 w-5"></i>
+                            <div>
+                                <div class="text-sm text-white/60">Office</div>
+                                <div class="font-medium">Student Center, Block A</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        `;
+    }
+
+    function renderAdminPanel() {
+        const analytics = getAnalytics();
+        return `
+            <section>
+                <div class="flex items-center justify-between mb-4 flex-wrap gap-2">
+                    <h2 class="text-2xl font-semibold">Admin Panel</h2>
+                    <div class="flex flex-wrap gap-2">
+                        <button onclick="handleAdminNav('dashboard')" class="px-3 py-2 rounded-xl text-sm inline-flex items-center gap-2 border border-white/10 ${getAdminTab() === 'dashboard' ? 'bg-white/10' : 'hover:bg-white/5'}">
+                            <i data-lucide="layout-dashboard" class="h-4 w-4"></i> Dashboard
+                        </button>
+                        <button onclick="handleAdminNav('add')" class="px-3 py-2 rounded-xl text-sm inline-flex items-center gap-2 border border-white/10 ${getAdminTab() === 'add' ? 'bg-white/10' : 'hover:bg-white/5'}">
+                            <i data-lucide="plus-circle" class="h-4 w-4"></i> Add Event
+                        </button>
+                        <button onclick="handleAdminNav('vol')" class="px-3 py-2 rounded-xl text-sm inline-flex items-center gap-2 border border-white/10 ${getAdminTab() === 'vol' ? 'bg-white/10' : 'hover:bg-white/5'}">
+                            <i data-lucide="users" class="h-4 w-4"></i> Assign Volunteer
+                        </button>
+                        <button onclick="handleAdminNav('track')" class="px-3 py-2 rounded-xl text-sm inline-flex items-center gap-2 border border-white/10 ${getAdminTab() === 'track' ? 'bg-white/10' : 'hover:bg-white/5'}">
+                            <i data-lucide="list-checks" class="h-4 w-4"></i> Track Registration
+                        </button>
+                        <button onclick="handleAdminNav('queries')" class="px-3 py-2 rounded-xl text-sm inline-flex items-center gap-2 border border-white/10 ${getAdminTab() === 'queries' ? 'bg-white/10' : 'hover:bg-white/5'}">
+                            <i data-lucide="message-square" class="h-4 w-4"></i> Queries
+                        </button>
+                    </div>
+                </div>
+                <div class="${brand.card} rounded-2xl p-5">
+                    ${renderAdminContent(analytics)}
+                </div>
+            </section>
+        `;
+    }
+
+    function handleAdminNav(tabId) {
+        currentTab = 'admin';
+        sessionStorage.setItem('adminTab', tabId);
+        render();
+    }
+
+    function getAdminTab() {
+        return sessionStorage.getItem('adminTab') || 'dashboard';
+    }
+
+    function renderAdminContent(analytics) {
+        const adminTab = getAdminTab();
+        switch (adminTab) {
+            case 'dashboard': return renderDashboardView(analytics);
+            case 'add': return renderAddEventForm();
+            case 'vol': return renderAssignVolunteer();
+            case 'track': return renderTrackRegistration();
+            case 'queries': return renderQueriesView();
+            default: return renderDashboardView(analytics);
+        }
+    }
+
+    function renderDashboardView(analytics) {
+        return `
+            <div class="grid lg:grid-cols-3 gap-4">
+                <div class="lg:col-span-2 h-64 bg-white/5 rounded-2xl p-3 border border-white/10">
+                    <div class="text-sm text-white/70 mb-2">Registrations over dates</div>
+                    <div id="chart-container" class="w-full h-full"></div>
+                </div>
+                <div class="space-y-3">
+                    <div class="p-4 rounded-2xl border border-white/10 bg-white/5">
+                        <div class="text-sm text-white/60">Total Registrations</div>
+                        <div class="text-3xl font-bold">${analytics.total}</div>
+                    </div>
+                    <div class="p-4 rounded-2xl border border-white/10 bg-white/5">
+                        <div class="text-sm text-white/60 mb-2">Top Events</div>
+                        <div class="space-y-2">
+                            ${analytics.top.map(t => `
+                                <div class="flex items-center justify-between text-sm">
+                                    <span>${t.title}</span>
+                                    <span class="text-white/70">${t.count}</span>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                </div>
+                <div class="lg:col-span-3">
+                    <h3 class="text-xl font-semibold mb-3">Event Management</h3>
+                    <div class="max-h-72 overflow-auto rounded-2xl border border-white/10">
+                        <table class="w-full text-sm">
+                            <thead class="bg-white/5 border-b border-white/10 sticky top-0">
+                                <tr>
+                                    <th class="text-left p-3">Title</th>
+                                    <th class="text-left p-3">Date</th>
+                                    <th class="text-left p-3">Venue</th>
+                                    <th class="text-left p-3">Capacity</th>
+                                    <th class="text-right p-3">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${events.map(e => `
+                                    <tr class="odd:bg-white/0 even:bg-white/5">
+                                        <td class="p-3">${e.title}</td>
+                                        <td class="p-3">${e.date}</td>
+                                        <td class="p-3">${e.venue}</td>
+                                        <td class="p-3">${e.capacity}</td>
+                                        <td class="p-3 text-right">
+                                            <button onclick="setEditingEvent('${e.id}')" class="px-2 py-1 rounded-lg hover:bg-white/10 text-xs inline-flex items-center gap-1">
+                                                <i data-lucide="pencil" class="h-3 w-3"></i> Edit
+                                            </button>
+                                            <button onclick="handleDeleteEvent('${e.id}')" class="px-2 py-1 rounded-lg hover:bg-red-500/20 text-xs inline-flex items-center gap-1 ml-2">
+                                                <i data-lucide="trash-2" class="h-3 w-3 text-red-400"></i> Delete
+                                            </button>
+                                        </td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    function renderEditEventForm(event) {
+        return `
+            <div id="edit-modal" class="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
+                <div class="${brand.card} rounded-2xl p-6 w-full max-w-lg">
+                    <h3 class="text-xl font-semibold mb-4">Edit Event: ${event.title}</h3>
+                    <form id="edit-event-form" data-event-id="${event.id}" class="grid grid-cols-2 gap-3">
+                        <div class="col-span-2">
+                            <label class="text-sm text-white/70">Title</label>
+                            <input name="title" type="text" value="${event.title}" required class="w-full mt-1 bg-white/10 border border-white/10 rounded-xl px-3 py-2"/>
+                        </div>
+                        <div>
+                            <label class="text-sm text-white/70">Track</label>
+                            <input name="track" type="text" value="${event.track}" class="w-full mt-1 bg-white/10 border border-white/10 rounded-xl px-3 py-2"/>
+                        </div>
+                        <div>
+                            <label class="text-sm text-white/70">Venue</label>
+                            <input name="venue" type="text" value="${event.venue}" required class="w-full mt-1 bg-white/10 border border-white/10 rounded-xl px-3 py-2"/>
+                        </div>
+                        <div>
+                            <label class="text-sm text-white/70">Date</label>
+                            <input name="date" type="date" value="${event.date}" required class="w-full mt-1 bg-white/10 border border-white/10 rounded-xl px-3 py-2"/>
+                        </div>
+                        <div>
+                            <label class="text-sm text-white/70">Time</label>
+                            <input name="time" type="text" value="${event.time}" required class="w-full mt-1 bg-white/10 border border-white/10 rounded-xl px-3 py-2"/>
+                        </div>
+                        <div class="col-span-2">
+                            <label class="text-sm text-white/70">Capacity</label>
+                            <input name="capacity" type="number" value="${event.capacity}" required class="w-full mt-1 bg-white/10 border border-white/10 rounded-xl px-3 py-2"/>
+                        </div>
+                        <div class="col-span-2">
+                            <label class="text-sm text-white/70">Description</label>
+                            <textarea name="desc" rows="4" class="w-full mt-1 bg-white/10 border border-white/10 rounded-xl px-3 py-2">${event.desc}</textarea>
+                        </div>
+                        <div class="col-span-2 flex items-center justify-end gap-2">
+                            <button type="button" onclick="cancelEditing()" class="px-4 py-2 rounded-xl border border-white/15">Cancel</button>
+                            <button type="submit" class="px-5 py-2 rounded-2xl bg-gradient-to-r from-fuchsia-500 to-amber-400 text-black font-medium">Update Event</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        `;
+    }
+
+    function setEditingEvent(id) {
+        editingEventId = id;
+        render();
+    }
+
+    function cancelEditing() {
+        editingEventId = null;
+        render();
+    }
+
+    function handleDeleteEvent(id) {
+        if (confirm("Are you sure you want to delete this event?")) {
+            events = events.filter(e => e.id !== id);
+            registrations = registrations.filter(r => r.event.id !== id);
+            volunteers = volunteers.filter(v => v.evId !== id);
+            setLocal("fs_events", events);
+            setLocal("fs_regs", registrations);
+            setLocal("fs_vols", volunteers);
+            render();
+        }
+    }
+
+    function renderAddEventForm() {
+        return `
+            <div class="grid md:grid-cols-3 gap-5">
+                <form id="add-event-form" class="md:col-span-2 grid grid-cols-2 gap-3">
+                    <div class="col-span-2">
+                        <label class="text-sm text-white/70">Title</label>
+                        <input name="title" type="text" required class="w-full mt-1 bg-white/10 border border-white/10 rounded-xl px-3 py-2"/>
+                    </div>
+                    <div>
+                        <label class="text-sm text-white/70">Track</label>
+                        <input name="track" type="text" class="w-full mt-1 bg-white/10 border border-white/10 rounded-xl px-3 py-2"/>
+                    </div>
+                    <div>
+                        <label class="text-sm text-white/70">Venue</label>
+                        <input name="venue" type="text" required class="w-full mt-1 bg-white/10 border border-white/10 rounded-xl px-3 py-2"/>
+                    </div>
+                    <div>
+                        <label class="text-sm text-white/70">Date</label>
+                        <input name="date" type="date" required class="w-full mt-1 bg-white/10 border border-white/10 rounded-xl px-3 py-2"/>
+                    </div>
+                    <div>
+                        <label class="text-sm text-white/70">Time</label>
+                        <input name="time" type="text" required class="w-full mt-1 bg-white/10 border border-white/10 rounded-xl px-3 py-2"/>
+                    </div>
+                    <div>
+                        <label class="text-sm text-white/70">Capacity</label>
+                        <input name="capacity" type="number" required class="w-full mt-1 bg-white/10 border border-white/10 rounded-xl px-3 py-2"/>
+                    </div>
+                    <div class="col-span-2">
+                        <label class="text-sm text-white/70">Description</label>
+                        <textarea name="desc" rows="4" class="w-full mt-1 bg-white/10 border border-white/10 rounded-xl px-3 py-2"></textarea>
+                    </div>
+                    <div class="col-span-2 flex items-center justify-end gap-2">
+                        <button type="reset" class="px-4 py-2 rounded-xl border border-white/15">Clear</button>
+                        <button type="submit" class="px-5 py-2 rounded-2xl bg-gradient-to-r from-fuchsia-500 to-amber-400 text-black font-medium">Add Event</button>
+                    </div>
+                </form>
+                <div class="space-y-3">
+                    <div class="text-sm text-white/60">Recent Events</div>
+                    <div class="space-y-2 max-h-72 overflow-auto pr-1">
+                        ${events.slice(0, 6).map(e => `
+                            <div class="p-3 rounded-xl border border-white/10 bg-white/5">
+                                <div class="text-sm font-medium">${e.title}</div>
+                                <div class="text-xs text-white/60">${e.date} • ${e.time} • ${e.venue}</div>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    function renderAssignVolunteer() {
+        return `
+            <div class="grid md:grid-cols-2 gap-5">
+                <form id="assign-volunteer-form" class="space-y-3">
+                    <div>
+                        <label class="text-sm text-white/70">Volunteer Name</label>
+                        <input name="name" type="text" class="w-full mt-1 bg-white/10 border border-white/10 rounded-xl px-3 py-2"/>
+                    </div>
+                    <div>
+                        <label class="text-sm text-white/70">Phone</label>
+                        <input name="phone" type="text" class="w-full mt-1 bg-white/10 border border-white/10 rounded-xl px-3 py-2"/>
+                    </div>
+                    <div>
+                        <label class="text-sm text-white/70">Event</label>
+                        <select name="eventId" class="w-full mt-1 bg-white/10 border border-white/10 rounded-xl px-3 py-2">
+                            ${events.map(e => `<option value="${e.id}">${e.title}</option>`).join('')}
+                        </select>
+                    </div>
+                    <button type="submit" class="px-5 py-2 rounded-2xl bg-gradient-to-r from-fuchsia-500 to-amber-400 text-black font-medium">Assign</button>
+                </form>
+                <div>
+                    <div class="text-sm text-white/60 mb-2">Assigned Volunteers</div>
+                    <div class="space-y-2 max-h-72 overflow-auto pr-1">
+                        ${volunteers.length === 0 ? '<div class="text-white/60 text-sm">No volunteers yet.</div>' :
+                            volunteers.map(v => `
+                                <div class="p-3 rounded-xl border border-white/10 bg-white/5 flex items-center justify-between">
+                                    <div>
+                                        <div class="text-sm font-medium">${v.name} — ${events.find(e => e.id === v.evId)?.title}</div>
+                                        <div class="text-xs text-white/60">${v.phone}</div>
+                                    </div>
+                                    <button onclick="handleRemoveVolunteer('${v.id}')" class="p-2 rounded-lg hover:bg-white/10"><i data-lucide="trash-2" class="h-4 w-4"></i></button>
+                                </div>
+                            `).join('')}
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    function renderTrackRegistration() {
+        return `
+            <div>
+                <div class="flex items-center justify-between mb-3">
+                    <div class="relative">
+                        <i data-lucide="search" class="absolute left-2 top-2.5 h-4 w-4 text-white/50"></i>
+                        <input id="reg-search" placeholder="Search by name, email, event or code" class="pl-8 pr-3 py-2 text-sm rounded-xl bg-white/10 border border-white/10 placeholder:text-white/40"/>
+                    </div>
+                    <div id="reg-count" class="text-sm text-white/60">${registrations.length} results</div>
+                </div>
+                <div class="max-h-80 overflow-auto rounded-2xl border border-white/10">
+                    <table class="w-full text-sm">
+                        <thead class="bg-white/5 border-b border-white/10 sticky top-0">
+                            <tr>
+                                <th class="text-left p-3">Event</th>
+                                <th class="text-left p-3">Name</th>
+                                <th class="text-left p-3">Email</th>
+                                <th class="text-left p-3">Code</th>
+                                <th class="text-left p-3">Status</th>
+                                <th class="text-right p-3">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="reg-table-body">
+                            ${renderRegistrationTableRows(registrations)}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        `;
+    }
+
+    function renderRegistrationTableRows(regs) {
+        if (regs.length === 0) {
+            return `<tr><td colSpan="6" class="p-4 text-center text-white/60">No registrations found.</td></tr>`;
+        }
+        return regs.map(r => `
+            <tr class="odd:bg-white/0 even:bg-white/5">
+                <td class="p-3">${r.event.title}</td>
+                <td class="p-3">${r.name}</td>
+                <td class="p-3">${r.email}</td>
+                <td class="p-3">${r.code}</td>
+                <td class="p-3">
+                    <span class="px-2 py-1 rounded-full text-xs font-medium ${r.checkedIn ? 'bg-green-500/20 text-green-300' : 'bg-red-500/20 text-red-300'}">
+                        ${r.checkedIn ? 'Checked In' : 'Not Checked In'}
+                    </span>
+                </td>
+                <td class="p-3 text-right">
+                    <button onclick="handleCheckInRegistration('${r.id}')" class="px-2 py-1 rounded-lg border border-white/10 hover:bg-white/10 text-xs mr-2">${r.checkedIn ? 'Uncheck' : 'Check In'}</button>
+                    <button onclick="handleRemoveRegistration('${r.id}')" class="px-2 py-1 rounded-lg border border-white/10 hover:bg-white/10 text-xs">Remove</button>
+                </td>
+            </tr>
+        `).join('');
+    }
+
+    function renderQueriesView() {
+        return `
+            <div class="space-y-2 max-h-96 overflow-auto pr-1">
+                ${queries.length === 0 ? '<div class="text-white/60 text-sm">No queries yet.</div>' :
+                    queries.map(q => `
+                        <div class="p-3 rounded-xl border border-white/10 bg-white/5 flex items-start justify-between gap-3">
+                            <div>
+                                <div class="text-sm font-medium">${q.name} <span class="text-white/50">• ${q.email}</span></div>
+                                <div class="text-sm text-white/80 mt-1">${q.msg}</div>
+                                <div class="text-xs text-white/50 mt-1">${new Date(q.ts).toLocaleString()}</div>
+                            </div>
+                            <button onclick="handleToggleQueryStatus('${q.id}')" class="px-3 py-1 rounded-lg text-xs border border-white/10 ${q.status === 'open' ? 'bg-amber-400 text-black' : 'bg-white/10'}">
+                                ${q.status === 'open' ? 'Mark Closed' : 'Reopen'}
+                            </button>
+                        </div>
+                    `).join('')}
+            </div>
+        `;
+    }
+
+    function getAnalytics() {
+        const byDate = {};
+        events.forEach(e => (byDate[e.date] = byDate[e.date] || 0));
+        registrations.forEach(r => {
+            if (r.event && r.event.date) {
+                byDate[r.event.date] = (byDate[r.event.date] || 0) + 1;
+            }
+        });
+        const chart = Object.keys(byDate).sort().map(d => ({ date: d, regs: byDate[d] }));
+        const top = [...events].map(e => ({
+            id: e.id,
+            title: e.title,
+            count: registrations.filter(r => r.event && r.event.id === e.id).length,
+        })).sort((a, b) => b.count - a.count).slice(0, 5);
+        return { chart, top, total: registrations.length };
+    }
+
+    function toPassPNG(r) {
+        const statusColor = r.checkedIn ? '#4ade80' : '#f87171';
+        const statusText = r.checkedIn ? 'Checked In' : 'Not Checked In';
+        const svg = encodeURIComponent(`
+            <svg xmlns='http://www.w3.org/2000/svg' width='600' height='300' fill='none'>
+                <rect width='100%' height='100%' fill='#0f172a'/>
+                <g opacity='0.2' fill='url(#g)'>
+                    <rect x='10' y='10' width='580' height='280' rx='24'/>
+                </g>
+                <defs>
+                    <linearGradient id='g' x1='0' x2='1'>
+                        <stop offset='0%' stop-color='#d946ef'/>
+                        <stop offset='100%' stop-color='#f59e0b'/>
+                    </linearGradient>
+                </defs>
+                <g font-family='sans-serif' font-weight='600'>
+                    <text x='30' y='50' fill='white' font-size='20'>FestoSphere Pass</text>
+                    <text x='30' y='90' fill='white' font-size='24'>${r.event.title}</text>
+                    <text x='30' y='125' fill='#e2e8f0' font-size='16'>${r.name}</text>
+                    <text x='30' y='150' fill='#94a3b8' font-size='12'>${r.email}</text>
+                    <text x='30' y='180' fill='#e2e8f0' font-size='14'>${r.event.date} • ${r.event.time} • ${r.event.venue}</text>
+                    <text x='30' y='210' fill='white' font-size='18'>Code: ${r.code}</text>
+                    <rect x='30' y='230' width='120' height='24' rx='6' fill='${statusColor}'/>
+                    <text x='90' y='247' fill='black' font-size='12' text-anchor='middle' font-weight='500'>${statusText}</text>
+                </g>
+                <rect x='450' y='180' width='100' height='100' rx='12' fill='white'/>
+                <g transform='translate(458, 188)'>
+                    ${hashToBits(r.code, 12 * 12).map((b, i) =>
+                        `<rect x='${(i % 12) * 8.33}' y='${Math.floor(i / 12) * 8.33}' width='7.33' height='7.33' fill='${b ? 'black' : 'white'}'/>`
+                    ).join('')}
+                </g>
+            </svg>
+        `);
+        return `data:image/svg+xml;charset=utf-8,${svg}`;
+    }
+
+    function renderFakeQR(value) {
+        const size = 12;
+        const bits = hashToBits(value, size * size);
+        return `
+            <div class="aspect-square w-full p-2 bg-white rounded-lg grid place-items-center">
+                <div class="grid w-full gap-1" style="grid-template-columns: repeat(${size}, minmax(0, 1fr));">
+                    ${bits.map(b => `<div class="aspect-square ${b ? "bg-black" : "bg-white"}"></div>`).join('')}
+                </div>
+            </div>
+        `;
+    }
+
+    function hashToBits(str, n) {
+        let h = 2166136261;
+        for (let i = 0; i < str.length; i++) h = (h ^ str.charCodeAt(i)) * 16777619;
+        const arr = [];
+        for (let i = 0; i < n; i++) {
+            h ^= h << 13;
+            h ^= h >>> 17;
+            h ^= h << 5;
+            arr.push((h >>> 31) & 1);
+        }
+        return arr;
+    }
+
+    function attachEventListeners() {
+        const regForm = document.getElementById('registration-form');
+        if (regForm) {
+            regForm.addEventListener('submit', handleRegistrationSubmit);
+        }
+
+        const supportForm = document.getElementById('support-form');
+        if (supportForm) {
+            supportForm.addEventListener('submit', handleSupportSubmit);
+        }
+
+        const addEventForm = document.getElementById('add-event-form');
+        if (addEventForm) {
+            addEventForm.addEventListener('submit', handleAddEventSubmit);
+        }
+
+        const assignVolunteerForm = document.getElementById('assign-volunteer-form');
+        if (assignVolunteerForm) {
+            assignVolunteerForm.addEventListener('submit', handleAssignVolunteerSubmit);
+        }
+
+        const regSearch = document.getElementById('reg-search');
+        if (regSearch) {
+            regSearch.addEventListener('input', handleRegSearch);
+        }
+
+        const editEventForm = document.getElementById('edit-event-form');
+        if (editEventForm) {
+            editEventForm.addEventListener('submit', handleUpdateEventSubmit);
+        }
+
+        const homeSearch = document.getElementById('search-input');
+        if (homeSearch) {
+            homeSearch.addEventListener('input', handleHomeSearch);
+        }
+    }
+
+    function handleHomeSearch(e) {
+        const query = e.target.value.toLowerCase();
+        const filteredEvents = events.filter(e => e.title.toLowerCase().includes(query) || e.track.toLowerCase().includes(query));
+        document.getElementById('events-grid').innerHTML = filteredEvents.map(e => `
+            <div class="${brand.card} rounded-2xl p-4 flex flex-col justify-between">
+                <div>
+                    <div class="flex items-center justify-between">
+                        <div class="text-xs uppercase tracking-wide text-white/60">${e.track}</div>
+                        <div class="text-[10px] px-2 py-1 rounded-full bg-white/10 border border-white/10">Capacity ${e.capacity}</div>
+                    </div>
+                    <h3 class="mt-2 text-lg font-semibold">${e.title}</h3>
+                    <p class="text-sm text-white/70 mt-1 line-clamp-3">${e.desc}</p>
+                </div>
+                <div class="mt-4 flex items-center justify-between text-sm text-white/80">
+                    <span class="inline-flex items-center gap-1"><i data-lucide="map-pin" class="h-4 w-4"></i> ${e.venue}</span>
+                    <span class="inline-flex items-center gap-1"><i data-lucide="clock" class="h-4 w-4"></i> ${e.time}</span>
+                </div>
+                <div class="mt-3 text-xs text-white/60">${e.date}</div>
+                <div class="mt-4">
+                    <a onclick="handleNav('register')" class="inline-flex items-center gap-1 text-sm font-medium text-amber-300 hover:text-amber-200">
+                        Register <i data-lucide="chevron-right" class="h-4 w-4"></i>
+                    </a>
+                </div>
+            </div>
+        `).join('');
+        lucide.createIcons();
+    }
+
+    function handleUpdateEventSubmit(e) {
+        e.preventDefault();
+        const form = e.target;
+        const formData = new FormData(form);
+        const updatedEvent = {
+            id: form.dataset.eventId,
+            title: formData.get('title'),
+            track: formData.get('track'),
+            venue: formData.get('venue'),
+            date: formData.get('date'),
+            time: formData.get('time'),
+            desc: formData.get('desc'),
+            capacity: Number(formData.get('capacity')),
+        };
+
+        events = events.map(e => e.id === updatedEvent.id ? updatedEvent : e);
+        registrations = registrations.map(r => r.event.id === updatedEvent.id ? {...r, event: updatedEvent} : r);
+        setLocal('fs_events', events);
+        setLocal('fs_regs', registrations);
+        cancelEditing();
+    }
+
+    function handleRegSearch(e) {
+        const query = e.target.value.toLowerCase();
+        const filtered = registrations.filter(r =>
+            [r.name, r.email, r.event.title, r.code].some(x => x?.toLowerCase().includes(query))
+        );
+        document.getElementById('reg-count').textContent = `${filtered.length} results`;
+        document.getElementById('reg-table-body').innerHTML = renderRegistrationTableRows(filtered);
+        lucide.createIcons();
+    }
+
+    function handleRegistrationSubmit(e) {
+        e.preventDefault();
+        const eventId = document.getElementById('event-select').value;
+        const event = events.find(e => e.id === eventId);
+        const name = document.getElementById('name-input').value;
+        const email = document.getElementById('email-input').value;
+        const note = document.getElementById('note-input').value;
+
+        const reg = {
+            id: crypto.randomUUID(),
+            event,
+            name,
+            email,
+            note,
+            ts: new Date().toISOString(),
+            code: `FS-${Math.random().toString(36).slice(2, 8).toUpperCase()}`,
+            checkedIn: false,
+        };
+        registrations.push(reg);
+        setLocal('fs_regs', registrations);
+        profile = { name, email };
+        setLocal('fs_profile', profile);
+        alert('Registered! Check My Pass for your QR code.');
+        document.getElementById('note-input').value = '';
+        render();
+    }
+
+    function handleSupportSubmit(e) {
+        e.preventDefault();
+        const name = document.getElementById('support-name').value;
+        const email = document.getElementById('support-email').value;
+        const msg = document.getElementById('support-msg').value;
+
+        queries.push({ id: crypto.randomUUID(), name, email, msg, ts: new Date().toISOString(), status: 'open' });
+        setLocal('fs_queries', queries);
+        alert('Thanks! Your query has been recorded.');
+        document.getElementById('support-msg').value = '';
+        render();
+    }
+
+    function handleAddEventSubmit(e) {
+        e.preventDefault();
+        const formData = new FormData(e.target);
+        const newEvent = {
+            id: crypto.randomUUID(),
+            title: formData.get('title'),
+            track: formData.get('track'),
+            venue: formData.get('venue'),
+            date: formData.get('date'),
+            time: formData.get('time'),
+            desc: formData.get('desc'),
+            capacity: Number(formData.get('capacity')),
+        };
+        events.unshift(newEvent);
+        setLocal('fs_events', events);
+        e.target.reset();
+        render();
+    }
+
+    function handleAssignVolunteerSubmit(e) {
+        e.preventDefault();
+        const formData = new FormData(e.target);
+        const newVolunteer = {
+            id: crypto.randomUUID(),
+            name: formData.get('name'),
+            phone: formData.get('phone'),
+            evId: formData.get('eventId'),
+        };
+        volunteers.unshift(newVolunteer);
+        setLocal('fs_vols', volunteers);
+        e.target.reset();
+        render();
+    }
+
+    function handleRemoveVolunteer(id) {
+        volunteers = volunteers.filter(v => v.id !== id);
+        setLocal('fs_vols', volunteers);
+        render();
+    }
+
+    function handleRemoveRegistration(id) {
+        registrations = registrations.filter(r => r.id !== id);
+        setLocal('fs_regs', registrations);
+        render();
+    }
+
+    function handleRegistrationSubmit(e) {
+    e.preventDefault();
+    const eventId = document.getElementById('event-select').value;
+    const event = events.find(e => e.id === eventId);
+    const name = document.getElementById('name-input').value.trim();
+    const email = document.getElementById('email-input').value.trim();
+    const note = document.getElementById('note-input').value.trim();
+
+    // --- VALIDATION START ---
+    if (!eventId) {
+        alert("Please select an event.");
+        return;
+    }
+    if (name === "") {
+        alert("Full name is required.");
+        return;
+    }
+    const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailPattern.test(email)) {
+        alert("Please enter a valid email address.");
+        return;
+    }
+    const alreadyRegistered = registrations.some(
+        (r) => r.event.id === eventId && r.email.toLowerCase() === email.toLowerCase()
+    );
+    if (alreadyRegistered) {
+        alert("You are already registered for this event.");
+        return;
+    }
+    // --- VALIDATION END ---
+
+    const reg = {
+        id: crypto.randomUUID(),
+        event,
+        name,
+        email,
+        note,
+        ts: new Date().toISOString(),
+        code: `FS-${Math.random().toString(36).slice(2, 8).toUpperCase()}`,
+        checkedIn: false,
+    };
+    registrations.push(reg);
+    setLocal('fs_regs', registrations);
+    profile = { name, email };
+    setLocal('fs_profile', profile);
+    alert('Registered! Check My Pass for your QR code.');
+    document.getElementById('note-input').value = '';
+    render();
+}
+
+
+    function handleCheckInRegistration(id) {
+        registrations = registrations.map(r => r.id === id ? { ...r, checkedIn: !r.checkedIn } : r);
+        setLocal('fs_regs', registrations);
+        render();
+    }
+
+    function handleToggleQueryStatus(id) {
+        queries = queries.map(q => q.id === id ? { ...q, status: q.status === 'open' ? 'closed' : 'open' } : q);
+        setLocal('fs_queries', queries);
+        render();
+    }
+
+    // Initial render on page load
+    document.addEventListener('DOMContentLoaded', () => {
+        render();
+    });
+</script>
+
+</body>
+</html>
